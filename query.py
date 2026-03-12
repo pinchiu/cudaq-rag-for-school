@@ -33,7 +33,7 @@ retriever = vectorstore.as_retriever(
 )
 
 '''
-llm = ChatOllama(model="qwen3:14b-q4_K_M")
+llm = ChatOllama(model="")
 
 template = """Act as a professional AI assistant. Please answer the question "only based on" the reference materials provided below.
 If the answer cannot be found in the reference materials, answer directly: "Based on the information currently provided, I did not find any relevant information."
