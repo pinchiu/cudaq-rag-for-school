@@ -1,0 +1,9 @@
+.vscode
+__pycache__
+chroma_db_dir
+splits
+chroma_quantum_chroma_db
+model /bgeranker
+cuda_quantum_full_docs
+.ipynb_checkpoints
+cuda_quantum_chroma_db
