@@ -7,3 +7,4 @@ model /bgeranker
 cuda_quantum_full_docs
 .ipynb_checkpoints
 cuda_quantum_chroma_db
+*.ipynb
