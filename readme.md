@@ -1,86 +1,115 @@
-# Retrieval-Augmented Generation (RAG) 實作流程解析
+# CUDA-Q RAG 智能問答助理
 
-本專案將 RAG 的實作流程分為兩大階段：**建立知識庫 (Indexing Phase)** 與 **檢索與生成 (Retrieval & Generation Phase)**。
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Pixi Managed](https://img.shields.io/badge/Pixi-Managed-green?logo=pixi&logoColor=white)](https://pixi.sh/)
+[![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-orange)](https://ollama.com/)
 
----
-
-## 第一階段：建立知識庫 (Indexing Phase)
-此階段之目標為將原始資料轉換為系統可快速檢索之向量索引。此程序通常於背景自動執行或定期更新。
-
-### 1. 資料收集與提取 (Data Extraction)
-自各種來源 (如 PDF、Word、Notion 頁面、網頁或內部資料庫) 收集資料，並將不同格式之檔案統一萃取為純文字。
-
-### 2. 文本切塊 (Text Chunking)
-受限於大型語言模型 (LLM) 及向量模型之輸入長度限制，且過長之文本易導致語義模糊，系統會將長篇文本切分為較小之區塊 (Chunks)。相鄰區塊通常會保留部分重疊 (Overlap)，以保持上下文語義之連貫性。
-
-### 3. 文本向量化 (Embedding)
-此為核心轉換步驟。系統將切分後之文本區塊輸入嵌入模型 (Embedding Model)，將自然語言轉換為高維度向量 (Vector)，以表徵該段文本之深層語義。
-
-### 4. 存入向量資料庫 (Vector Database Storage)
-將轉換完成之向量資料、對應之原始文本區塊，以及後設資料 (Metadata，如資料來源等)，共同存入向量資料庫 (如 ChromaDB)，並建立索引以供後續進行高效之相似度檢索。
+本專案利用 RAG (Retrieval-Augmented Generation) 技術，建構一個專注於 **NVIDIA CUDA-Q** 的本地端 AI 問答助手。系統整合了網頁爬蟲、文本切片、向量檢索與 LLM 回應，實現高效且精準的知識檢索。
 
 ---
 
-## 第二階段：檢索與生成 (Retrieval & Generation Phase)
-知識庫建置完成後，系統即可接收使用者提問。此階段著重於即時性與準確度。
+## 系統架構 (System Architecture)
 
-### 1. 查詢處理 (Query Processing)
-接收使用者之自然語言提問，並進入互動對話迴圈。
+系統運作流程分為 **知識建置 (Indexing)** 與 **檢索生成 (RAG Flow)** 兩大核心階段：
 
-### 2. 查詢向量化與檢索 (Query Embedding & Retrieval)
-將使用者提問透過與第一階段相同之嵌入模型轉換為「查詢向量」(Query Vector)。隨後利用此向量於向量資料庫中進行相似度搜尋，檢索用語義最相近之候選文本區塊。
-
-### 3. 精細重排 (Reranking)
-因初階向量搜尋主要依賴語義空間距離，精確度偶有不足，故引入 Cross-Encoder 重排模型，針對初步檢索之候選文本與提問進行深度相關性評分，並篩選出關聯度最高之 Top-4 內容。
-
-### 4. 提示詞建構 (Prompt Construction)
-系統建構提示詞 (Prompt)，引導語言模型扮演 AI 助手，並限制其僅能依據檢索出之參考上下文進行回答。
-
-### 5. 生成最終回答 (Generation)
-大型語言模型接收包含參考資料與問題之提示詞後，進行閱讀理解與歸納總結，最終生成流暢且準確之回答。
-
----
-
-## 如何執行本專案 (How to Run)
-
-### 1. 前置準備 (Prerequisites)
-* **安裝 [Ollama](https://ollama.com/)**: 本專案使用 Ollama 管理本地嵌入模型與 LLM。
-* **下載嵌入模型**: 執行以下命令下載專案所選用的嵌入模型：
-  ```bash
-  ollama pull qwen3-embedding:8b
-  ```
-
-### 2. 環境安裝 (Installation)
-您可以選擇使用 `pip` 或 `pixi` 進行套件管理與環境配置：
-
-**方式一：使用 pip (傳統)**
-```bash
-pip install -r requirements.txt
+```mermaid
+graph TD
+    A[CUDA-Q 官方網頁] -->|爬取| B[文本提取 & 清洗]
+    B -->|切片| C[文本區塊 Chunks]
+    C -->|向量化| D[Ollama Embedding]
+    D -->|存儲| E[(ChromaDB 向量資料庫)]
+    
+    F[使用者提問] -->|轉化| G[查詢向量]
+    G -->|檢索| E
+    E -->|候選文本| H[重排 & 精煉]
+    H -->|上下文注入| I[LLM 生成回答]
+    I -->|最終回饋| J[使用者]
 ```
 
-**方式二：使用 pixi (推薦)**
+### 階段一：建立知識庫 (Indexing Phase)
+*   **資料收集 (Extraction)**: 自動抓取 [CUDA-Q v0.7.0](https://nvidia.github.io/cuda-quantum/0.7.0/) 網頁內容，並移除 Sphinx 生成的特殊符號 (如 `¶`)。
+*   **文本切塊 (Chunking)**: 採用 `RecursiveCharacterTextSplitter`，區塊大小 1000 字符，重疊量 200 字符，確保代碼區塊完整性與語義連貫。
+*   **神經索引 (Neural Indexing)**: 使用本地端 `qwen3-embedding:8b` 模型將提取內容轉換為高維語義向量。
+
+### 階段二：檢索與生成 (Retrieval & Generation Phase)
+*   **語義檢索 (Retrieval)**: 即時將問題轉化為向量，並於 **ChromaDB** 中進行相似度檢索。
+*   **精確重排 (Reranking)**: 引入 **Cross-Encoder** 機制對初步結果進行深度相關性評分，篩選出最精確的 Top-4 內容。
+*   **專業回答 (Generation)**: 結合提示詞工程，引導 LLM 僅根據檢索到的技術文件內容進行精確解答。
+
+---
+
+## 環境安裝 (Installation Guide)
+
+推薦使用 **[pixi](https://pixi.sh/)** 管理專案環境，以確保跨平台環境的一致性。
+
+### 1. 安裝 Pixi (Package Manager)
+
+根據您的作業系統，執行對應的安裝指令：
+
+#### Linux / macOS
 ```bash
-# 若尚未安裝 pixi，請參考 https://pixi.sh/
+curl -fsSL https://pixi.sh/install.sh | sh
+```
+*若無 `curl`，可使用 `wget`:*
+```bash
+wget -qO- https://pixi.sh/install.sh | sh
+```
+
+#### Windows (PowerShell)
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"
+```
+
+### 2. 初始化專案
+
+#### 安裝依附套件
+```bash
 pixi install
 ```
+*(非 Pixi 用戶可使用 `pip install -r requirements.txt`)*
 
-### 3. 執行步驟 (Execution Steps)
-依序執行以下腳本完成 RAG 的端對端流程：
-
-**步驟 A：資料收集與切分**  
-執行 `cudaq_craw_and_Split.py` 以自動下載 CUDA-Q 官方網頁文件並將其切分為 chunks 並儲存於 `cuda_quantum_full_docs` 目錄中。
+#### 啟動 Ollama 服務並拉取模型
+確保 [Ollama](https://ollama.com/) 正在執行，並拉取本專案指定的模型：
 ```bash
-python cudaq_craw_and_Split.py
+pixi run pull-model
 ```
 
-**步驟 B：向量化並存入資料庫**  
-執行 `embedding.py` 將切分後的文本內容透過 Ollama 轉換為高維向量並持久化儲存於 ChromaDB 資料庫中。
-```bash
-python embedding.py
-```
+---
 
-**步驟 C：啟動檢索與問答**  
-執行 `query.py` 啟動互動式終端介面，您可以輸入問題來測試檢索結果與模型回應。
+## 執行指南 (Execution Workflow)
+
+依序執行以下任務即可完成整個 RAG 流程。
+
+### 第一步：抓取資料 (Crawl)
+下載網頁文件並將其切分為 chunks，儲存於 `cuda_quantum_full_docs` 目錄中。
 ```bash
-python query.py
+pixi run crawl
+```
+*(手動指令: `python cudaq_craw_and_Split.py`)*
+
+### 第二步：建置索引 (Index)
+將文本內容透過 Ollama 轉換為向量並存入 ChromaDB。
+```bash
+pixi run embed
+```
+*(手動指令: `python embedding.py`)*
+
+### 第三步：啟動問答 (Query)
+開啟互動式終端介面，您可以輸入問題來測試檢索結果與模型回應。
+```bash
+pixi run query
+```
+*(手動指令: `python query.py`)*
+
+---
+
+## 專案目錄結構 (Project Structure)
+
+```text
+├── cudaq_craw_and_Split.py   # 網頁爬蟲與文檔切分邏輯
+├── embedding.py              # 向量化算力與資料庫持久化
+├── query.py                  # RAG 檢索流程與互動式介面
+├── pixi.toml                # Pixi 專案配置與 Tasks 定義
+├── requirements.txt         # 標準 Pip 相依列表
+└── cuda_quantum_chroma_db/   # 本地向量存儲目錄 (自動生成)
 ```
