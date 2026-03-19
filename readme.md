@@ -38,3 +38,49 @@
 
 ### 5. 生成最終回答 (Generation)
 大型語言模型接收包含參考資料與問題之提示詞後，進行閱讀理解與歸納總結，最終生成流暢且準確之回答。
+
+---
+
+## 如何執行本專案 (How to Run)
+
+### 1. 前置準備 (Prerequisites)
+* **安裝 [Ollama](https://ollama.com/)**: 本專案使用 Ollama 管理本地嵌入模型與 LLM。
+* **下載嵌入模型**: 執行以下命令下載專案所選用的嵌入模型：
+  ```bash
+  ollama pull qwen3-embedding:8b
+  ```
+
+### 2. 環境安裝 (Installation)
+您可以選擇使用 `pip` 或 `pixi` 進行套件管理與環境配置：
+
+**方式一：使用 pip (傳統)**
+```bash
+pip install -r requirements.txt
+```
+
+**方式二：使用 pixi (推薦)**
+```bash
+# 若尚未安裝 pixi，請參考 https://pixi.sh/
+pixi install
+```
+
+### 3. 執行步驟 (Execution Steps)
+依序執行以下腳本完成 RAG 的端對端流程：
+
+**步驟 A：資料收集與切分**  
+執行 `cudaq_craw_and_Split.py` 以自動下載 CUDA-Q 官方網頁文件並將其切分為 chunks 並儲存於 `cuda_quantum_full_docs` 目錄中。
+```bash
+python cudaq_craw_and_Split.py
+```
+
+**步驟 B：向量化並存入資料庫**  
+執行 `embedding.py` 將切分後的文本內容透過 Ollama 轉換為高維向量並持久化儲存於 ChromaDB 資料庫中。
+```bash
+python embedding.py
+```
+
+**步驟 C：啟動檢索與問答**  
+執行 `query.py` 啟動互動式終端介面，您可以輸入問題來測試檢索結果與模型回應。
+```bash
+python query.py
+```
