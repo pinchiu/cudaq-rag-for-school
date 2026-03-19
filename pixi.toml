@@ -1,0 +1,19 @@
+[workspace]
+authors = ["scott <pinchiu0920@gmail.com>"]
+channels = ["conda-forge"]
+name = "cudaq"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.10.19.*"
+
+[pypi-dependencies]
+langchain-community = ">=0.4.1, <0.5"
+langchain-core = ">=1.2.20, <2"
+langchain-text-splitters = ">=1.1.1, <2"
+beautifulsoup4 = ">=4.14.3, <5"
+requests = ">=2.32.5, <3"
+chromadb = ">=1.5.5, <2"
