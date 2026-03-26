@@ -131,3 +131,4 @@ python query_es.py
 ├── requirements.txt         # 標準 Pip 相依列表
 └── cuda_quantum_chroma_db/   # 本地向量存儲目錄 (自動生成)
 ```
+

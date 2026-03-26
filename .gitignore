@@ -12,3 +12,4 @@ cuda_quantum_chroma_db
 !.pixi/config.toml
 query_es.py
 docker-compose.yml
+
