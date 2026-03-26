@@ -125,8 +125,6 @@ python query_es.py
 ├── cudaq_craw_and_Split.py   # 網頁爬蟲與文檔切分邏輯
 ├── embedding.py              # 向量化算力與資料庫持久化 (ChromaDB)
 ├── query.py                  # RAG 檢索流程與互動式介面 (ChromaDB)
-├── query_es.py               # Elasticsearch RAG 版本 (自動處理索引與查詢)
-├── docker-compose.yml        # 用於啟動 Elasticsearch 的 Docker 配置
 ├── pixi.toml                # Pixi 專案配置與 Tasks 定義
 ├── requirements.txt         # 標準 Pip 相依列表
 └── cuda_quantum_chroma_db/   # 本地向量存儲目錄 (自動生成)
