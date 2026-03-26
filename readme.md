@@ -32,9 +32,8 @@ graph TD
 *   **神經索引 (Neural Indexing)**: 使用本地端 `qwen3-embedding:8b` 模型將提取內容轉換為高維語義向量。
 
 ### 階段二：檢索與生成 (Retrieval & Generation Phase)
-*   **語義檢索 (Retrieval)**: 即時將問題轉化為向量，並於 **ChromaDB** 中進行相似度檢索。
-*   **精確重排 (Reranking)**: 引入 **Cross-Encoder** 機制對初步結果進行深度相關性評分，篩選出最精確的 Top-4 內容。
-*   **專業回答 (Generation)**: 結合提示詞工程，引導 LLM 僅根據檢索到的技術文件內容進行精確解答。
+*   **語義檢索 (Retrieval)**: 即時將問題轉化為向量，並於 **ChromaDB** 中進行優化的 Top-10 相似度檢索。
+*   **專業回答 (Generation)**: 結合提示詞工程並注入檢索到的 Top-6 技術文件內容，引導 LLM (`qwen3:14b`) 進行精確解答。
 
 ---
 
@@ -66,7 +65,7 @@ powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | i
 ```bash
 pixi install
 ```
-*(非 Pixi 用戶可使用 `pip install -r requirements.txt`)*
+*(非 Pixi 用戶可使用 `pip install -r requirements.txt`，確保包含 `langchain-ollama` 與 `langchain-chroma`)*
 
 #### 啟動 Ollama 服務並拉取模型
 確保 [Ollama](https://ollama.com/) 正在執行，並拉取本專案指定的模型：

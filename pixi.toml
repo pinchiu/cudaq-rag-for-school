@@ -6,6 +6,10 @@ platforms = ["linux-64"]
 version = "0.1.0"
 
 [tasks]
+pull-model = "ollama pull qwen3:14b-q4_K_M && ollama pull qwen3-embedding:8b"
+crawl = "python cudaq_craw_and_Split.py"
+embed = "python embedding.py"
+query = "python query.py"
 
 [dependencies]
 python = "3.10.19.*"
@@ -14,6 +18,8 @@ python = "3.10.19.*"
 langchain-community = ">=0.4.1, <0.5"
 langchain-core = ">=1.2.20, <2"
 langchain-text-splitters = ">=1.1.1, <2"
+langchain-ollama = ">=1.0.1, <2"
+langchain-chroma = ">=1.1.0, <2"
 beautifulsoup4 = ">=4.14.3, <5"
 requests = ">=2.32.5, <3"
 chromadb = ">=1.5.5, <2"

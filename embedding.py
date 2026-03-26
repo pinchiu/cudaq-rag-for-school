@@ -1,6 +1,6 @@
 import os
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_ollama import OllamaEmbeddings
+from langchain_chroma import Chroma
 
 # Initialize Embedding model
 model = "qwen3-embedding:8b" 

@@ -1,9 +1,9 @@
 import os
 
 
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_community.chat_models import ChatOllama
+from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
+from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
@@ -27,39 +27,40 @@ vectorstore = Chroma(
 
 
 retriever = vectorstore.as_retriever(
-    #mmr  algorithm for diversity context
-    search_type="mmr",
-    search_kwargs={"k": 8, "fetch_k": 20}
+    search_type="similarity",
+    search_kwargs={"k": 10}
 )
 
-'''
-llm = ChatOllama(model="")
 
-template = """Act as a professional AI assistant. Please answer the question "only based on" the reference materials provided below.
-If the answer cannot be found in the reference materials, answer directly: "Based on the information currently provided, I did not find any relevant information."
+llm = ChatOllama(model="qwen3:14b-q4_K_M")
 
-[Reference Materials]
+template = """Act as a professional NVIDIA CUDA-Q assistant. Use the following pieces of retrieved context to answer the question. 
+If the answer is not contained within the text, say you don't know, but try to use all relevant details provided.
+
+[Context]
 {context}
 
-[User Question]
+[Question]
 {question}
+
+Answer concisely and professionally.
 """
 prompt = ChatPromptTemplate.from_template(template)
-'''
+
 
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
 
-'''
+
 rag_chain = (
     {"context": retriever | format_docs, "question": RunnablePassthrough()}
     | prompt
     | llm
     | StrOutputParser()
 )
-'''
+
 
 
 while True:
@@ -72,18 +73,26 @@ while True:
         
     print("Retrieving and reranking with the local BGE model...")
     
-    # Execute retrieval and reranking
+    # Execute retrieval and reranking for display and for the chain
+    # Note: rag_chain also calls the retriever, but we do it manually here to show sources
     retrieved_docs = retriever.invoke(user_input)
     
-    print("\n[Retrieved Relevant Materials (Top 4)]")
-    for i, doc in enumerate(retrieved_docs, 1):
+    print("\n[Retrieved Relevant Materials (Top 6)]")
+    for i, doc in enumerate(retrieved_docs[:6], 1):
         source = doc.metadata.get("source", "Unknown Source")
         chunk_file = doc.metadata.get("chunk_file", "Unknown Chunk File")
-        # Extract the score assigned by the reranker model
         score = doc.metadata.get("relevance_score", "N/A")
         
         print(f"--- Reference {i} (Rerank Score: {score} | Source: {source} | Chunk File: {chunk_file}) ---")
-        print(doc.page_content)
+        print(doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content)
         print("\n")
             
-    print("="*50 + "\n")
+    print("="*50)
+    print("Generating answer from LLM...")
+    
+    # Actually call the RAG chain
+    response = rag_chain.invoke(user_input)
+    
+    print("\n[AI Assistant Answer]")
+    print(response)
+    print("\n" + "="*50 + "\n")
