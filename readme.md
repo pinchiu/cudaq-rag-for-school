@@ -65,7 +65,7 @@ powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | i
 ```bash
 pixi install
 ```
-*(非 Pixi 用戶可使用 `pip install -r requirements.txt`，確保包含 `langchain-ollama` 與 `langchain-chroma`)*
+*(非 Pixi 用戶可使用 `pip install -r requirements.txt`)*
 
 #### 啟動 Ollama 服務並拉取模型
 確保 [Ollama](https://ollama.com/) 正在執行，並拉取本專案指定的模型：
