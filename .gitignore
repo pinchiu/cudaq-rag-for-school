@@ -10,3 +10,5 @@ cuda_quantum_chroma_db
 *.ipynb# pixi environments
 .pixi/*
 !.pixi/config.toml
+query_es.py
+docker-compose.yml

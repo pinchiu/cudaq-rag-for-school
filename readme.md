@@ -61,15 +61,17 @@ powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | i
 
 ### 2. 初始化專案
 
-#### 安裝依附套件
+#### 第一步：安裝 Python 套件 (軟體環境)
+此步驟會安裝 `langchain-ollama` 等程式碼依附套件 (約數 MB)。
 ```bash
 pixi install
 ```
 *(非 Pixi 用戶可使用 `pip install -r requirements.txt`)*
 
-#### 啟動 Ollama 服務並拉取模型
-確保 [Ollama](https://ollama.com/) 正在執行，並拉取本專案指定的模型：
+#### 第二步：拉取 LLM 模型權重 (模型大腦)
+確保 [Ollama](https://ollama.com/) 正在執行，並下載運行所需的模型權重 (約數 GB)。**這是 RAG 系統運行必經的步驟。**
 ```bash
+# 此指令會自動執行 ollama pull 拉取 qwen3:14b 與 qwen3-embedding:8b
 pixi run pull-model
 ```
 
@@ -100,14 +102,31 @@ pixi run query
 ```
 *(手動指令: `python query.py`)*
 
+### Elasticsearch 版本 (Elasticsearch Version)
+本專案現在支援使用 Elasticsearch 作為向量資料庫。
+
+#### 1. 啟動 Elasticsearch
+如果您本機尚未安裝 Elasticsearch，可以使用專案中的 `docker-compose.yml` 快速啟動：
+```bash
+docker-compose up -d
+```
+
+#### 2. 執行 Elasticsearch RAG
+執行以下指令，系統會自動檢查索引是否存在，若不存在則會自動從 `cuda_quantum_full_docs/splits` 讀取資料並建立索引：
+```bash
+python query_es.py
+```
+
 ---
 
 ## 專案目錄結構 (Project Structure)
 
 ```text
 ├── cudaq_craw_and_Split.py   # 網頁爬蟲與文檔切分邏輯
-├── embedding.py              # 向量化算力與資料庫持久化
-├── query.py                  # RAG 檢索流程與互動式介面
+├── embedding.py              # 向量化算力與資料庫持久化 (ChromaDB)
+├── query.py                  # RAG 檢索流程與互動式介面 (ChromaDB)
+├── query_es.py               # Elasticsearch RAG 版本 (自動處理索引與查詢)
+├── docker-compose.yml        # 用於啟動 Elasticsearch 的 Docker 配置
 ├── pixi.toml                # Pixi 專案配置與 Tasks 定義
 ├── requirements.txt         # 標準 Pip 相依列表
 └── cuda_quantum_chroma_db/   # 本地向量存儲目錄 (自動生成)

@@ -11,6 +11,7 @@ crawl = "python cudaq_craw_and_Split.py"
 embed = "python embedding.py"
 query = "python query.py"
 
+
 [dependencies]
 python = "3.10.19.*"
 
