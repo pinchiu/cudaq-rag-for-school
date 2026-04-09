@@ -32,10 +32,10 @@ retriever = vectorstore.as_retriever(
 )
 
 
-llm = ChatOllama(model="qwen3:14b-q4_K_M")
+llm = ChatOllama(model="gemma4:e4b-it-q4_K_M")
 
-template = """Act as a professional NVIDIA CUDA-Q assistant. Use the following pieces of retrieved context to answer the question. 
-If the answer is not contained within the text, say you don't know, but try to use all relevant details provided.
+template = """Act as an expert NVIDIA CUDA-Q and Quantum Computing assistant. 
+Use the following pieces of retrieved context to answer the question in a comprehensive, detailed, and professional manner.
 
 [Context]
 {context}

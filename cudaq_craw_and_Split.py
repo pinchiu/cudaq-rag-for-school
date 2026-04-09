@@ -1,4 +1,6 @@
 import os
+import json
+import subprocess
 import bs4
 import requests
 import concurrent.futures
@@ -14,6 +16,8 @@ HEADERS = {
 }
 INPUT_DIR = "cuda_quantum_full_docs"
 OUTPUT_DIR = os.path.join(INPUT_DIR, "splits")
+ACADEMIC_REPO = "https://github.com/NVIDIA/cuda-q-academic.git"
+ACADEMIC_DIR = os.path.join(INPUT_DIR, "cuda-q-academic")
 
 def get_all_links(url):
     """Analyzes the sidebar to find all relevant documentation pages."""
@@ -90,6 +94,79 @@ def scrape_docs():
         print(f"[!] Crawler error: {e}")
         return []
 
+def download_academic_repo():
+    print(f"[*] Checking academic repository...")
+    if not os.path.exists(INPUT_DIR):
+        os.makedirs(INPUT_DIR)
+        
+    if not os.path.exists(ACADEMIC_DIR):
+        print(f"[*] Cloning academic repository from {ACADEMIC_REPO}...")
+        try:
+            subprocess.run(["git", "clone", ACADEMIC_REPO, ACADEMIC_DIR], check=True)
+            print("[+] Successfully cloned academic repository.")
+        except subprocess.CalledProcessError as e:
+            print(f"[!] Error cloning repository: {e}")
+    else:
+        print(f"[*] Academic repository already exists at {ACADEMIC_DIR}. Pulling latest changes...")
+        try:
+            subprocess.run(["git", "-C", ACADEMIC_DIR, "pull"], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"[!] Error pulling repository updates: {e}")
+
+def extract_notebook(filepath):
+    text = ""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            for cell in data.get("cells", []):
+                source = cell.get("source", [])
+                if isinstance(source, list):
+                    text += "".join(source) + "\n\n"
+                else:
+                    text += source + "\n\n"
+    except Exception as e:
+        print(f"[!] Error reading notebook {filepath}: {e}")
+    return text
+
+def extract_markdown(filepath):
+    text = ""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            text = f.read()
+    except Exception as e:
+        print(f"[!] Error reading markdown {filepath}: {e}")
+    return text
+
+def process_academic_materials():
+    if not os.path.exists(ACADEMIC_DIR):
+        print(f"[!] Academic directory {ACADEMIC_DIR} not found.")
+        return
+
+    print("[*] Extracting academic notebooks and markdown files...")
+    extracted_count = 0
+    for root, dirs, files in os.walk(ACADEMIC_DIR):
+        if '.git' in root:
+            continue
+            
+        for file in files:
+            filepath = os.path.join(root, file)
+            rel_path = os.path.relpath(filepath, ACADEMIC_DIR)
+            
+            text = ""
+            if file.endswith('.ipynb'):
+                text = extract_notebook(filepath)
+            elif file.endswith('.md'):
+                text = extract_markdown(filepath)
+            
+            if text:
+                safe_name = "academic_" + rel_path.replace(os.sep, "_").replace(".ipynb", "").replace(".md", "")
+                out_path = os.path.join(INPUT_DIR, safe_name + ".txt")
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                extracted_count += 1
+                
+    print(f"[+] Successfully extracted {extracted_count} academic files into .txt format.")
+
 def process_and_split_documents():
     """Chunks the documents for the vector database with metadata preservation."""
     if not os.path.exists(INPUT_DIR):
@@ -144,13 +221,15 @@ def process_and_split_documents():
 
 if __name__ == "__main__":
     # check if we need to crawl or if data exists
-    has_data = os.path.exists(INPUT_DIR) and any(f.endswith('.txt') for f in os.listdir(INPUT_DIR))
+    has_data = os.path.exists(INPUT_DIR) and any(f.endswith('.txt') and not f.startswith('academic_') for f in os.listdir(INPUT_DIR))
     
     if not has_data:
-        print("[!] No local data found. Starting crawl pipeline...")
+        print("[!] No local web data found. Starting web crawl pipeline...")
         scrape_docs()
     else:
-        print(f"[*] Data detected in '{INPUT_DIR}'. Skipping crawl...")
+        print(f"[*] Web data detected in '{INPUT_DIR}'. Skipping crawl...")
     
+    download_academic_repo()
+    process_academic_materials()
     process_and_split_documents()
 
