@@ -28,4 +28,5 @@ chromadb = ">=1.5.5, <2"
 fastapi = ">=0.110.0"
 uvicorn = ">=0.29.0"
 pydantic = ">=2.6.0"
+pypdf = ">=4.0.0"
 

@@ -1,9 +1,11 @@
 import os
+import pypdf
 import json
 import subprocess
 import bs4
 import requests
 import concurrent.futures
+import shutil
 from bs4 import BeautifulSoup
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -16,8 +18,17 @@ HEADERS = {
 }
 INPUT_DIR = "cuda_quantum_full_docs"
 OUTPUT_DIR = os.path.join(INPUT_DIR, "splits")
+
+# Reference Repositories
 ACADEMIC_REPO = "https://github.com/NVIDIA/cuda-q-academic.git"
 ACADEMIC_DIR = os.path.join(INPUT_DIR, "cuda-q-academic")
+MAIN_REPO = "https://github.com/NVIDIA/cuda-quantum.git"
+MAIN_REPO_DIR = os.path.join(INPUT_DIR, "cuda-quantum")
+
+# Technical Papers
+ARXIV_PAPERS = [
+    "https://arxiv.org/pdf/2302.04631.pdf" # CUDA-Q foundational paper
+]
 
 def get_all_links(url):
     """Analyzes the sidebar to find all relevant documentation pages."""
@@ -113,6 +124,55 @@ def download_academic_repo():
         except subprocess.CalledProcessError as e:
             print(f"[!] Error pulling repository updates: {e}")
 
+def download_main_repo():
+    print(f"[*] Checking main CUDA-Quantum repository...")
+    if not os.path.exists(MAIN_REPO_DIR):
+        print(f"[*] Cloning main repository from {MAIN_REPO}...")
+        try:
+            subprocess.run(["git", "clone", "--depth", "1", MAIN_REPO, MAIN_REPO_DIR], check=True)
+            print("[+] Successfully cloned main repository.")
+        except subprocess.CalledProcessError as e:
+            print(f"[!] Error cloning repository: {e}")
+    else:
+        print(f"[*] Main repository already exists. Pulling latest code...")
+        try:
+            subprocess.run(["git", "-C", MAIN_REPO_DIR, "pull"], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"[!] Error pulling repository updates: {e}")
+
+def download_technical_papers():
+    print(f"[*] Checking for technical whitepapers...")
+    paper_dir = os.path.join(INPUT_DIR, "papers")
+    if not os.path.exists(paper_dir):
+        os.makedirs(paper_dir)
+        
+    for url in ARXIV_PAPERS:
+        filename = url.split("/")[-1]
+        filepath = os.path.join(paper_dir, filename)
+        if not os.path.exists(filepath):
+            print(f"[*] Downloading paper: {filename}")
+            try:
+                response = requests.get(url, stream=True, timeout=30)
+                response.raise_for_status()
+                with open(filepath, "wb") as f:
+                    shutil.copyfileobj(response.raw, f)
+            except Exception as e:
+                print(f"[!] Error downloading paper {filename}: {e}")
+
+def extract_pdf(filepath):
+    """Extracts text from a PDF file using pypdf."""
+    text = ""
+    try:
+        reader = pypdf.PdfReader(filepath)
+        for i, page in enumerate(reader.pages):
+            page_text = page.extract_text()
+            if page_text:
+                text += f"--- Page {i+1} ---\n{page_text}\n\n"
+    except Exception as e:
+        print(f"[!] Error reading PDF {filepath}: {e}")
+    return text
+
+
 def extract_notebook(filepath):
     text = ""
     try:
@@ -139,14 +199,12 @@ def extract_markdown(filepath):
 
 def process_academic_materials():
     if not os.path.exists(ACADEMIC_DIR):
-        print(f"[!] Academic directory {ACADEMIC_DIR} not found.")
         return
 
-    print("[*] Extracting academic notebooks and markdown files...")
+    print("[*] Extracting academic materials (Notebooks, MD, PDF)...")
     extracted_count = 0
     for root, dirs, files in os.walk(ACADEMIC_DIR):
-        if '.git' in root:
-            continue
+        if '.git' in root: continue
             
         for file in files:
             filepath = os.path.join(root, file)
@@ -157,15 +215,72 @@ def process_academic_materials():
                 text = extract_notebook(filepath)
             elif file.endswith('.md'):
                 text = extract_markdown(filepath)
+            elif file.endswith('.pdf'):
+                text = extract_pdf(filepath)
             
             if text:
-                safe_name = "academic_" + rel_path.replace(os.sep, "_").replace(".ipynb", "").replace(".md", "")
+                safe_name = "academic_" + rel_path.replace(os.sep, "_").replace(".", "_")
                 out_path = os.path.join(INPUT_DIR, safe_name + ".txt")
                 with open(out_path, 'w', encoding='utf-8') as f:
                     f.write(text)
                 extracted_count += 1
                 
-    print(f"[+] Successfully extracted {extracted_count} academic files into .txt format.")
+    print(f"[+] Successfully extracted {extracted_count} academic files.")
+
+def process_main_repo_examples():
+    if not os.path.exists(MAIN_REPO_DIR):
+        return
+
+    print("[*] Extracting main repo examples (Python, C++, Headers)...")
+    # Target folders that contain high-quality examples
+    target_folders = ["examples", os.path.join("python", "examples"), "snippets", "docs"]
+    extracted_count = 0
+
+    for folder in target_folders:
+        folder_path = os.path.join(MAIN_REPO_DIR, folder)
+        if not os.path.exists(folder_path): continue
+
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                # Include Python, C++, and markdown documentation from the repo
+                if file.endswith(('.py', '.cpp', '.h', '.cuh', '.md')):
+                    filepath = os.path.join(root, file)
+                    rel_path = os.path.relpath(filepath, MAIN_REPO_DIR)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                            text = f.read()
+                        
+                        if text:
+                            # Add a header to help the LLM know which file this is
+                            text = f"Source File: {rel_path}\n---\n" + text
+                            safe_name = "mainrepo_" + rel_path.replace(os.sep, "_").replace(".", "_")
+                            out_path = os.path.join(INPUT_DIR, safe_name + ".txt")
+                            with open(out_path, 'w', encoding='utf-8') as f:
+                                f.write(text)
+                            extracted_count += 1
+                    except:
+                        pass
+    
+    print(f"[+] Successfully extracted {extracted_count} code examples from the main repo.")
+
+def process_technical_papers():
+    paper_dir = os.path.join(INPUT_DIR, "papers")
+    if not os.path.exists(paper_dir): return
+
+    print("[*] Extracting text from technical whitepapers...")
+    extracted_count = 0
+    for file in os.listdir(paper_dir):
+        if file.endswith('.pdf'):
+            filepath = os.path.join(paper_dir, file)
+            text = extract_pdf(filepath)
+            if text:
+                out_path = os.path.join(INPUT_DIR, f"whitepaper_{file.replace('.pdf', '')}.txt")
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                extracted_count += 1
+    print(f"[+] Successfully extracted {extracted_count} whitepapers.")
+
 
 def process_and_split_documents():
     """Chunks the documents for the vector database with metadata preservation."""
@@ -220,16 +335,25 @@ def process_and_split_documents():
     print(f"[SUCCESS] All chunks saved to: {OUTPUT_DIR}")
 
 if __name__ == "__main__":
-    # check if we need to crawl or if data exists
-    has_data = os.path.exists(INPUT_DIR) and any(f.endswith('.txt') and not f.startswith('academic_') for f in os.listdir(INPUT_DIR))
-    
-    if not has_data:
+    # 1. Scrape Web Documentation
+    has_web_data = os.path.exists(INPUT_DIR) and any(f.endswith('.txt') and not f.startswith(('academic_', 'mainrepo_', 'whitepaper_')) for f in os.listdir(INPUT_DIR))
+    if not has_web_data:
         print("[!] No local web data found. Starting web crawl pipeline...")
         scrape_docs()
     else:
         print(f"[*] Web data detected in '{INPUT_DIR}'. Skipping crawl...")
     
+    # 2. Sync and Process Repositories
     download_academic_repo()
     process_academic_materials()
+    
+    download_main_repo()
+    process_main_repo_examples()
+    
+    # 3. Handle Technical Whitepapers
+    download_technical_papers()
+    process_technical_papers()
+    
+    # 4. Final Splitting
     process_and_split_documents()
 
