@@ -8,7 +8,8 @@ version = "0.1.0"
 [tasks]
 pull-model = "ollama pull qwen3:14b-q4_K_M && ollama pull qwen3-embedding:8b"
 crawl = "python cudaq_craw_and_Split.py"
-embed = "python embedding.py"
+embed = "python embedding_chroma.py"
+embed-es = "python embedding_elasticsearch.py"
 query = "python query.py"
 
 
@@ -24,4 +25,9 @@ langchain-chroma = ">=1.1.0, <2"
 beautifulsoup4 = ">=4.14.3, <5"
 requests = ">=2.32.5, <3"
 chromadb = ">=1.5.5, <2"
+fastapi = ">=0.110.0"
+uvicorn = ">=0.29.0"
+pydantic = ">=2.6.0"
+langchain-elasticsearch = ">=1.0.0, <2"
+elasticsearch = ">=8.19.3, <9"
 

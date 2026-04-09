@@ -93,37 +93,50 @@ pixi run crawl
 ```bash
 pixi run embed
 ```
-*(手動指令: `python embedding.py`)*
+*(手動指令: `python embedding_chroma.py`)*
 
-### 第三步：啟動問答 (Query)
-開啟互動式終端介面，您可以輸入問題來測試檢索結果與模型回應。
+### 第三步：啟動 API 伺服器 (API Server)
+啟動 FastAPI 伺服器，提供後端 RAG 接口。
 ```bash
-pixi run query
-```
-*(手動指令: `python query.py`)*
-
-### Elasticsearch 版本 (Elasticsearch Version)
-本專案現在支援使用 Elasticsearch 作為向量資料庫。
-
-#### 1. 啟動 Elasticsearch
-如果您本機尚未安裝 Elasticsearch，可以使用專案中的 `docker-compose.yml` 快速啟動：
-```bash
-docker-compose up -d
+pixi run python server.py
 ```
 
-#### 2. 執行 Elasticsearch RAG
-執行以下指令，系統會自動檢查索引是否存在，若不存在則會自動從 `cuda_quantum_full_docs/splits` 讀取資料並建立索引：
-```bash
-python query_es.py
-```
+---
+
+## 網頁介面 (Web Interface)
+
+本專案現在包含一個現代化的 Web 前端介面，提供更直觀的問答體驗。
+
+### 特色 (Features)
+*   **優質視覺設計**: 採用 NVIDIA 綠與量子青色調，支援毛玻璃特效與動態背景。
+*   **即時互動**: 支援即時輸入、加載狀態顯示與流暢的動畫過度。
+*   **來源追蹤**: 自動在側邊欄列出每個問答所引用的技術文件來源。
+*   **響應式佈局**: 完美適配桌面端與行動端瀏覽器。
+
+### 啟動前端 (Start Frontend)
+1. 進入 `frontend` 目錄：
+   ```bash
+   cd frontend
+   ```
+2. 安裝依賴 (僅限第一次)：
+   ```bash
+   npm install
+   ```
+3. 啟動開發伺服器：
+   ```bash
+   npm run dev
+   ```
+   *預設開啟於 `http://localhost:3000`。請確保後端 `server.py` 已在 8000 端口運行。*
 
 ---
 
 ## 專案目錄結構 (Project Structure)
 
 ```text
+├── frontend/                # React + Vite 前端網頁目錄
+├── server.py                # FastAPI 後端 API 伺服器
 ├── cudaq_craw_and_Split.py   # 網頁爬蟲與文檔切分邏輯
-├── embedding.py              # 向量化算力與資料庫持久化 (ChromaDB)
+├── embedding_chroma.py       # 向量化算力與資料庫持久化 (ChromaDB)
 ├── query.py                  # RAG 檢索流程與互動式介面 (ChromaDB)
 ├── pixi.toml                # Pixi 專案配置與 Tasks 定義
 ├── requirements.txt         # 標準 Pip 相依列表

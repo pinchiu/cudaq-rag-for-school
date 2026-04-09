@@ -1,15 +1,34 @@
-.vscode
-__pycache__
-chroma_db_dir
-splits
-chroma_quantum_chroma_db
-models/
-cuda_quantum_full_docs
-.ipynb_checkpoints
-cuda_quantum_chroma_db
-*.ipynb# pixi environments
-.pixi/*
-!.pixi/config.toml
-query_es.py
-docker-compose.yml
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+*.log
 
+# Environment and Secrets
+.env
+
+# Data & Database (Local storage)
+cuda_quantum_full_docs/
+cuda_quantum_chroma_db/
+chroma_db_dir/
+splits/
+models/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Pixi
+.pixi/
+
+# IDE & OS
+.vscode/
+.DS_Store
+.ipynb_checkpoints/
+*.ipynb
+
+# Miscellaneous
+docker-compose.yml
+query_es.py

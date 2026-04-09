@@ -1,132 +1,156 @@
-import bs4
 import os
+import bs4
 import requests
+import concurrent.futures
 from bs4 import BeautifulSoup
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Crawler
-base_url = "https://nvidia.github.io/cuda-quantum/0.7.0/"
-entry_url = f"{base_url}using/quick_start.html"
-headers = {
+# --- Configuration ---
+BASE_URL = "https://nvidia.github.io/cuda-quantum/0.7.0/"
+ENTRY_URL = f"{BASE_URL}using/quick_start.html"
+HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
-input_dir = "cuda_quantum_full_docs"
-output_dir = os.path.join(input_dir, "splits")
+INPUT_DIR = "cuda_quantum_full_docs"
+OUTPUT_DIR = os.path.join(INPUT_DIR, "splits")
 
 def get_all_links(url):
-    print(f"Analyzing navigation bar: {url}")
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    sidebar = soup.select_one(".bd-sidebar") or soup.select_one("nav")
-    links = []
-    if sidebar:
-        for a in sidebar.find_all('a', href=True):
-            full_url = requests.compat.urljoin(url, a['href']).split('#')[0]
-           
-            if full_url.startswith(base_url) and full_url.endswith(".html"):
-                if full_url not in links:
-                    links.append(full_url)
-    return sorted(list(set(links)))
+    """Analyzes the sidebar to find all relevant documentation pages."""
+    print(f"[*] Analyzing navigation structure: {url}")
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Target the sidebar or main navigation specifically
+        sidebar = soup.select_one(".bd-sidebar") or soup.select_one("nav")
+        links = []
+        
+        if sidebar:
+            for a in sidebar.find_all('a', href=True):
+                full_url = requests.compat.urljoin(url, a['href']).split('#')[0]
+                # Filter to stay within the documentation version scope
+                if full_url.startswith(BASE_URL) and full_url.endswith(".html"):
+                    if full_url not in links:
+                        links.append(full_url)
+        
+        unique_links = sorted(list(set(links)))
+        print(f"[+] Found {len(unique_links)} unique pages to crawl.")
+        return unique_links
+    except Exception as e:
+        print(f"[!] Error fetching links: {e}")
+        return []
+
+def clean_doc_content(doc):
+    """Removes common documentation artifacts like the Sphinx '¶' symbol."""
+    doc.page_content = doc.page_content.replace("¶", "").strip()
+    return doc
 
 def scrape_docs():
+    """Performs parallel downloading and cleaning of all documentation pages."""
+    all_pages = get_all_links(ENTRY_URL)
+    if not all_pages:
+        return
+
+    print(f"[*] Starting parallel download of {len(all_pages)} pages...")
+    
+    # Using a SoupStrainer to isolate the technical content
+    bs4_strainer = bs4.SoupStrainer(attrs={"itemprop": "articleBody"})
+    
+    # Note: Modern WebBaseLoader supports multi-threading natively for paths
+    loader = WebBaseLoader(
+        web_paths=all_pages,
+        bs_kwargs={"parse_only": bs4_strainer},
+        header_template=HEADERS
+    )
+    # Set requests per second to stay polite to the server
+    loader.requests_per_second = 5 
+    
     try:
-        all_pages = get_all_links(entry_url)
-        print(f"Found {len(all_pages)} page links in total.")
-        
-        bs4_strainer = bs4.SoupStrainer(attrs={"itemprop": "articleBody"})
-        loader = WebBaseLoader(
-            web_paths=all_pages,
-            bs_kwargs={"parse_only": bs4_strainer},
-            header_template=headers
-        )
-
-        print("\nStarting full download of all content...")
         docs = loader.load()
+        print(f"[+] Successfully downloaded {len(docs)} documents.")
 
-        if not os.path.exists(input_dir):
-            os.makedirs(input_dir)
+        if not os.path.exists(INPUT_DIR):
+            os.makedirs(INPUT_DIR)
 
         for i, doc in enumerate(docs):
-            relative_path = all_pages[i].replace(base_url, "").replace("/", "_").replace(".html", "")
-            if not relative_path: relative_path = "index"
+            # Generate a readable filename from the URL
+            rel_path = all_pages[i].replace(BASE_URL, "").replace("/", "_").replace(".html", "")
+            if not rel_path: rel_path = "index"
             
-            filename = os.path.join(input_dir, f"{relative_path}.txt")
+            filename = os.path.join(INPUT_DIR, f"{rel_path}.txt")
             with open(filename, "w", encoding="utf-8") as f:
-                f.write(doc.page_content.strip())
+                # Clean and save
+                f.write(clean_doc_content(doc).page_content)
             
-        print(f"\n Finished! Crawled files saved to: {input_dir}")
-
+        print(f"[+] Raw files saved to: {INPUT_DIR}")
+        return docs
     except Exception as e:
-        print(f"Crawler error: {e}")
-# Split
+        print(f"[!] Crawler error: {e}")
+        return []
+
 def process_and_split_documents():
-    if not os.path.exists(input_dir):
-        print(f"Directory {input_dir} not found")
+    """Chunks the documents for the vector database with metadata preservation."""
+    if not os.path.exists(INPUT_DIR):
+        print(f"[!] Directory {INPUT_DIR} not found. Run crawler first.")
         return
-    # Create metadata to facilitate source tracing 
+
+    print(f"[*] Initializing Text Splitter (Chunk Size: 1000, Overlap: 200)")
     text_splitter = RecursiveCharacterTextSplitter(
-        # To avoid breaking code like cudaq.kernel, change "." to ". " (period + space) 
-        # Ensure chunking only happens at the end of a sentence or a newline
+        # Ordered by priority: logic blocks -> lines -> sentences -> words
         separators=["\n\n", "\n", "。 ", ". ", " ", ""],
         chunk_size=1000,
         chunk_overlap=200,
         length_function=len
     )
 
-    all_docs = []
+    all_docs_content = []
     metadatas = []
-    files_processed = 0
 
-    print(f"\nLoading documents from '{input_dir}'...")
-    for filename in os.listdir(input_dir):
-        if filename.endswith(".txt"):
-            filepath = os.path.join(input_dir, filename)
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    # Read full text and remove the regression marker "¶" generated by Sphinx
-                    content = f.read().replace("¶", "")
-                
-                if not content.strip():
-                    continue
-
-                all_docs.append(content)
-                source_name = filename.replace(".txt", "")
-                metadatas.append({"source": source_name})
-                files_processed += 1
-                
-            except Exception as e:
-                print(f"Error reading file {filename}: {e}")
-
-    if not all_docs:
-        print("No .txt files found or all documents are empty.")
-        return
-        
-    print(f"Successfully loaded {files_processed} documents.")
-    print("Performing text splitting...")
+    print(f"[*] Loading files from '{INPUT_DIR}'...")
+    files = [f for f in os.listdir(INPUT_DIR) if f.endswith(".txt")]
     
-    splits = text_splitter.create_documents(all_docs, metadatas=metadatas)
-    print(f"Splitting complete, generated {len(splits)} text chunks.")
+    for filename in files:
+        filepath = os.path.join(INPUT_DIR, filename)
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            if content.strip():
+                all_docs_content.append(content)
+                # Preserve the source name in metadata for RAG citations
+                metadatas.append({"source": filename.replace(".txt", "")})
+        except Exception as e:
+            print(f"[!] Error reading {filename}: {e}")
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    print(f"[*] Performing semantic splitting on {len(all_docs_content)} files...")
+    splits = text_splitter.create_documents(all_docs_content, metadatas=metadatas)
+    print(f"[+] Generated {len(splits)} total chunks.")
 
-    print("Saving files...")
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
+
+    # Save chunks for the embedding script to pick up
     for i, split in enumerate(splits):
         source_name = split.metadata.get("source", "unknown")
-        chunk_filepath = os.path.join(output_dir, f"{source_name}_chunk_{i}.txt")
+        chunk_filename = f"{source_name}_chunk_{i}.txt"
+        chunk_path = os.path.join(OUTPUT_DIR, chunk_filename)
         
-        with open(chunk_filepath, "w", encoding="utf-8") as f:
+        with open(chunk_path, "w", encoding="utf-8") as f:
             f.write(split.page_content)
 
-    print(f"Execution finished! Split files saved to: {output_dir}")
+    print(f"[SUCCESS] All chunks saved to: {OUTPUT_DIR}")
 
 if __name__ == "__main__":
-    # Only execute crawler if folder doesn't exist or has no txt files
-    if not os.path.exists(input_dir) or not any(fname.endswith('.txt') for fname in os.listdir(input_dir)):
-        print("No downloaded data detected, starting crawler...")
+    # check if we need to crawl or if data exists
+    has_data = os.path.exists(INPUT_DIR) and any(f.endswith('.txt') for f in os.listdir(INPUT_DIR))
+    
+    if not has_data:
+        print("[!] No local data found. Starting crawl pipeline...")
         scrape_docs()
     else:
-        print(f"Data detected in '{input_dir}', skipping crawler and proceeding to text splitting!")
+        print(f"[*] Data detected in '{INPUT_DIR}'. Skipping crawl...")
     
     process_and_split_documents()
+
