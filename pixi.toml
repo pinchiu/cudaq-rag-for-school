@@ -11,6 +11,7 @@ crawl = "python cudaq_craw_and_Split.py"
 embed = "python embedding_chroma.py"
 embed-es = "python embedding_elasticsearch.py"
 query = "python query.py"
+serve = "python server.py"
 
 
 [dependencies]

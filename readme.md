@@ -97,11 +97,11 @@ pixi run crawl
     ```
 
 ### 第三步：啟動 API 伺服器 (API Server)
-啟動 FastAPI 伺服器，提供後端 RAG 接口給前端溝通。
+啟動 FastAPI 伺服器，提供後端 RAG 接口給前端溝通（目前預設使用 `su_robin/gemma-4-E4B-it-Q4_K_M` 模型）。
 ```bash
-pixi run query
+pixi run serve
 ```
-*(注意：依據目前的配置，伺服器通常掛載在特定的 Port 供前端連線)*
+*(注意：伺服器掛載在 8000 端口。您也可以使用 `pixi run query` 進行終端機互動測試)*
 
 ---
 
