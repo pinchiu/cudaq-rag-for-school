@@ -21,7 +21,7 @@ graph TD
     
     subgraph "知識引擎 (Knowledge Engine)"
         P -->|Notebook JSON Header Parsing| S[文本切片 Chunks]
-        S -->|Qwen3 Embedding| V[(本地向量庫 ChromaDB / ES)]
+        S -->|Qwen3 Embedding| V[(ChromaDB 向量資料庫)]
     end
     
     subgraph "檢索與生成 (RAG Flow)"
@@ -41,7 +41,7 @@ graph TD
 *   **預測性向量化**: 使用 NVIDIA GPU 加速的本地 `qwen3-embedding:8b` 模型，將所有技術內容映射至高維流形空間。
 
 ### 階段二：檢索與生成 (Retrieval & Generation Phase)
-*   **精準檢索策略**: 支援 Cosine Similarity 或 Elasticsearch 精確檢索，確保 RAG 系統能在毫秒級內找到最相關的技術參考碼。
+*   **精準檢索策略**: 支援 Cosine Similarity 精確語義檢索，確保 RAG 系統能在毫秒級內找到最相關的技術參考碼。
 *   **大語言模型推理**: 採用最新 4-bit 量化 G4 系列模型 (su_robin 增強版)，專門針對量子力學符號與 CUDA-Q 語法進行提示詞優化。
 
 ---
@@ -92,16 +92,11 @@ pixi run crawl
 *(對應專案的 `cudaq_craw_and_Split.py` 腳本)*
 
 ### 第二步：建置向量索引 (Index)
-專案內建支援 **ChromaDB (本地端免安裝伺服器)** 與 **Elasticsearch (需另外架設伺服器)** 兩種資料庫選擇。
-
-*   **使用 ChromaDB (推薦快速啟動)**:
-    ```bash
-    pixi run embed
-    ```
-*   **使用 Elasticsearch**: 確保 `docker-compose up -d` 已把 ES 啟動後，執行：
-    ```bash
-    pixi run embed-es
-    ```
+將文本內容透過 Ollama 轉換為向量並存入 ChromaDB。
+```bash
+pixi run embed
+```
+*(對應專案的 `embedding_chroma.py` 腳本)*
 
 ### 第三步：啟動 API 伺服器 (API Server)
 啟動 FastAPI 伺服器，提供後端 RAG 接口給前端溝通（目前預設使用 `su_robin/gemma-4-E4B-it-Q4_K_M` 模型）。
@@ -143,12 +138,11 @@ pixi run serve
 
 ```text
 ├── frontend/                # React + Vite 前端網頁目錄 (內含 KaTeX 配置)
-├── docker-compose.yml       # Elasticsearch 與生態系服務的容器組合設定
+├── server.py                # FastAPI 後端 API 伺服器 (Web 介面專用)
 ├── cudaq_craw_and_Split.py  # 網頁爬蟲、GitHub 自動下載抓取與文檔切分邏輯
 ├── embedding_chroma.py      # ChromaDB 本地專用向量寫入腳本
-├── embedding_elasticsearch.py# Elasticsearch 專用向量寫入腳本
-├── query.py                 # RAG 檢索流程伺服器 (ChromaDB API 版)
-├── query_es.py              # RAG 檢索流程伺服器 (Elasticsearch 版)
+├── query.py                 # RAG 終端機互動式檢索腳本 (CLI 測試用)
 ├── pixi.toml                # Pixi 專案配置與自訂快速指令 (Tasks) 定義
-└── requirements.txt         # Pip 依賴庫列表
+├── requirements.txt         # Pip 依賴庫列表
+└── cuda_quantum_chroma_db/   # 本地向量資料庫目錄 (自動生成)
 ```
