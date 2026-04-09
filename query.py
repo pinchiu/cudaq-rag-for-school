@@ -32,7 +32,7 @@ retriever = vectorstore.as_retriever(
 )
 
 
-llm = ChatOllama(model="gemma4:e4b-it-q4_K_M")
+llm = ChatOllama(model="su_robin/gemma-4-E4B-it-Q4_K_M")
 
 template = """Act as an expert NVIDIA CUDA-Q and Quantum Computing assistant. 
 Use the following pieces of retrieved context to answer the question in a comprehensive, detailed, and professional manner.

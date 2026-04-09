@@ -10,32 +10,39 @@
 
 ## 系統架構 (System Architecture)
 
-系統運作流程分為 **知識建置 (Indexing)** 與 **檢索生成 (RAG Flow)** 兩大核心階段：
+系統採用高效率的雙軌資料獲取管線 (Dual-Track Ingestion Pipeline)，並整合動態向量檢索技術：
 
 ```mermaid
 graph TD
-    A[CUDA-Q 官方網頁 & 學術庫 GitHub] -->|爬取與下載| B[文本提取 & 清洗]
-    B -->|切片| C[文本區塊 Chunks]
-    C -->|向量化| D[Ollama Embedding]
-    D -->|存儲| E[(向量資料庫 ChromaDB / ES)]
+    subgraph "資料獲取層 (Data Ingestion)"
+        W[CUDA-Q 官方網頁] -->|Web Crawl| P
+        A[Academic Repo GitHub] -->|Auto-Clone/Pull| P[文本處理器 Pipeline]
+    end
     
-    F[使用者提問] -->|轉化| G[查詢向量]
-    G -->|檢索| E
-    E -->|候選文本| H[重排 & 精煉]
-    H -->|上下文注入| I[LLM 生成回答]
-    I -->|最終回饋| J[使用者]
+    subgraph "知識引擎 (Knowledge Engine)"
+        P -->|Notebook JSON Header Parsing| S[文本切片 Chunks]
+        S -->|Qwen3 Embedding| V[(本地向量庫 ChromaDB / ES)]
+    end
+    
+    subgraph "檢索與生成 (RAG Flow)"
+        U[使用者提問] -->|語義向量化| Q[查詢向量]
+        Q -->|相似度檢索| V
+        V -->|技術上下文注入| L[Gemma 4 增強 LLM]
+        L -->|KaTeX 渲染回覆| Output[使用者]
+    end
 ```
 
 ### 階段一：建立知識庫 (Indexing Phase)
-*   **資料收集 (Extraction)**: 
-    *   自動抓取 [CUDA-Q v0.7.0](https://nvidia.github.io/cuda-quantum/0.7.0/) 網頁內容，並移除 Sphinx 生成的特殊符號 (如 `¶`)。
-    *   **全自動學術庫掛載**: 利用腳本從 GitHub 直接 `git clone` 或 `pull` [cuda-q-academic 教學資源庫](https://github.com/NVIDIA/cuda-q-academic)，並自動把所有的 Jupyter Notebook (`.ipynb`) 和 Markdown 筆記解析為純文本，豐富 RAG 的題庫！
-*   **文本切塊 (Chunking)**: 採用 `RecursiveCharacterTextSplitter`，區塊大小 1000 字符，重疊量 200 字符，確保代碼區塊完整性與語義連貫。
-*   **神經索引 (Neural Indexing)**: 使用本地端 `qwen3-embedding:8b` 模型將提取內容轉換為高維語義向量。
+*   **多維資料收集 (Multi-source Extraction)**: 
+    *   **網頁動態爬取**: 自動抓取 [CUDA-Q v0.7.0](https://nvidia.github.io/cuda-quantum/0.7.0/) 核心技術文件，並針對 Sphinx/Markdown 渲染產生的特殊字元進行語意優化。
+    *   **全自動學術庫同步**: 系統內建 `git` 自動更新能力，能同步獲取 NVIDIA 官方最新的 [cuda-q-academic](https://github.com/NVIDIA/cuda-q-academic) 教材。
+    *   **跨格式解析引擎**: 支援 `.ipynb` (Jupyter Notebook) 的 Cell-level 解析（將 code 與 markdown 智能串聯）以及標準 `.md` 檔案的結構化提取。
+*   **優化文本切塊 (Recursive Chunking)**: 採用 `RecursiveCharacterTextSplitter`，針對技術文件特性設定 1000 字符區塊與 200 字符重疊，確保程式碼邏輯在檢索時不被強制中斷。
+*   **預測性向量化**: 使用 NVIDIA GPU 加速的本地 `qwen3-embedding:8b` 模型，將所有技術內容映射至高維流形空間。
 
 ### 階段二：檢索與生成 (Retrieval & Generation Phase)
-*   **語義檢索 (Retrieval)**: 即時將問題轉化為向量，並於 **ChromaDB** 或者 **Elasticsearch** 中進行優化的相似度檢索。
-*   **專業回答 (Generation)**: 結合提示詞工程並注入檢索到的技術文件內容，引導主流強悍的本地 LLM (如 Gemma 4 變體模型) 進行精確解答。
+*   **精準檢索策略**: 支援 Cosine Similarity 或 Elasticsearch 精確檢索，確保 RAG 系統能在毫秒級內找到最相關的技術參考碼。
+*   **大語言模型推理**: 採用最新 4-bit 量化 G4 系列模型 (su_robin 增強版)，專門針對量子力學符號與 CUDA-Q 語法進行提示詞優化。
 
 ---
 
